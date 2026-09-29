@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Drawer Stack Calculator</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap">
+</head>
+<body>
+<style>
+/* Layout: one column of settings, then a face table with derived columns; all numbers in fractions of an inch */
+:root{
+  --bg:#f5f3ee; --panel:#ffffff; --fg:#1e1d1a; --muted:#6b675d; --line:#d9d4c8;
+  --accent:#8a4b1f; --ok:#2f6b3a; --bad:#a8321f;
+  --sans:"IBM Plex Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#1b1a17;--panel:#24221e;--fg:#ece8df;--muted:#a39d90;--line:#3a3731;--accent:#d9915a;--ok:#7fc48c;--bad:#e8735e;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#1b1a17;--panel:#24221e;--fg:#ece8df;--muted:#a39d90;--line:#3a3731;--accent:#d9915a;--ok:#7fc48c;--bad:#e8735e;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:15px;line-height:1.45;padding-block:24px;padding-inline:16px}
+main{max-width:880px;margin:0 auto;display:grid;gap:20px}
+h1{font-size:1.5rem;margin:0;text-wrap:balance}
+h2{font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 10px}
+p{margin:0;max-width:65ch;color:var(--muted)}
+section{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+label{display:grid;gap:4px;font-size:.85rem;color:var(--muted)}
+input,button,select{font:inherit;color:var(--fg)}
+input{font-family:var(--mono);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:6px 8px;width:100%;min-width:0}
+input:focus,button:focus{outline:2px solid var(--accent);outline-offset:1px}
+button{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:6px 12px;cursor:pointer}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:end}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+td.num{font-family:var(--mono)}
+td input{width:7em}
+.status{font-family:var(--mono);font-weight:600}
+.ok{color:var(--ok)} .bad{color:var(--bad)}
+.note{font-size:.85rem}
+.faces{display:grid;gap:8px}
+.chip{font-size:.75rem;padding:2px 8px;border:1px solid var(--line);border-radius:999px;color:var(--muted)}
+</style>
+
+<main>
+  <div>
+    <h1>Drawer Stack Calculator</h1>
+    <p>Enter the drawer faces you want to show the client. It returns the Chief Architect Item Heights to type in, and the usable interior height for each drawer, from the shop's construction rules.</p>
+  </div>
+
+  <section>
+    <h2>Stack and reveals</h2>
+    <div class="grid">
+      <label>Front stack height (in) <input id="stack" value="30"></label>
+      <label>Reveal between fronts <input id="reveal" value="1/8"></label>
+      <label>Reveal at top <input id="topReveal" value="1/8"></label>
+      <label>Cabinet panel thickness <input id="panel" value="5/8"></label>
+    </div>
+    <p class="note" style="margin-top:8px">Bottom front is flush with the box bottom. CA separations: top and bottom at panel thickness, intermediates at reveal width with reveal set to the same.</p>
+  </section>
+
+  <section>
+    <h2>Shop rule for usable height</h2>
+    <div class="grid">
+      <label>Slide bottom to drawer bottom underside <input id="slide" value="1 1/8"></label>
+      <label>Drawer bottom thickness <input id="dbottom" value="5/8"></label>
+      <label>Clearance above contents <input id="clear" value="1/2"></label>
+      <label>Slide bottom above face bottom, upper rows <input id="upper" value="5/8"></label>
+    </div>
+    <p class="note" style="margin-top:8px">Bottom drawer: slide sits on the cabinet bottom panel. Upper rows: slide bottom sits at the face bottom plus the offset you enter. Richelieu undermount needs min 28 mm (1 1/8") from slide bottom to underside of drawer bottom. Top drawer is capped by the cabinet top panel; every other drawer by the underside of the slides above it.</p>
+  </section>
+
+  <section>
+    <h2>Faces</h2>
+    <div class="row" style="margin-bottom:12px">
+      <label>Equal split <select id="n"><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option></select></label>
+      <button class="primary" id="split" type="button">Fill equal faces</button>
+      <button id="add" type="button">Add drawer</button>
+      <span id="avail" class="chip"></span>
+      <span id="status" class="status"></span>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Drawer</th><th>Face height</th><th>CA Item Height</th><th>Usable interior</th><th></th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <p class="note" style="margin-top:10px">Type Item Heights top down. Leave the bottom drawer unlocked; it should land on the value shown.</p>
+  </section>
+</main>
+
+<script>
+const $=id=>document.getElementById(id);
+function parseFrac(s){s=String(s).trim().replace(/"/g,'');if(!s)return NaN;let m=s.match(/^(-?\d+)?\s*(?:(\d+)\/(\d+))?$/);if(!m)return parseFloat(s);let v=m[1]?parseInt(m[1]):0;if(m[2])v+=parseInt(m[2])/parseInt(m[3]);return v}
+function fmt(v){if(isNaN(v))return '–';const neg=v<0;v=Math.abs(v);let w=Math.floor(v),f=Math.round((v-w)*16);if(f===16){w++;f=0}let d=16;while(f&&f%2===0){f/=2;d/=2}const s=(w||!f?w:'')+(f?(w?' ':'')+f+'/'+d:'');return (neg?'-':'')+(s===''?'0':s)+'"'}
+let faces=[];
+function settings(){return{upper:parseFrac($('upper').value),stack:parseFrac($('stack').value),rev:parseFrac($('reveal').value),top:parseFrac($('topReveal').value),panel:parseFrac($('panel').value),slide:parseFrac($('slide').value),db:parseFrac($('dbottom').value),cl:parseFrac($('clear').value)}}
+function available(s,n){return s.stack-s.top-(n-1)*s.rev}
+function render(){
+  const s=settings(),n=faces.length,tb=$('rows');tb.innerHTML='';
+  const avail=available(s,n);$('avail').textContent='Faces must total '+fmt(avail)+' for '+n+' drawers';
+  const sum=faces.reduce((a,b)=>a+(parseFrac(b)||0),0);
+  const st=$('status');const diff=Math.round((sum-avail)*16)/16;
+  if(n===0){st.textContent='';}else if(Math.abs(diff)<1/32){st.textContent='Sums to stack';st.className='status ok'}else{st.textContent=(diff>0?'Over by ':'Short by ')+fmt(Math.abs(diff));st.className='status bad'}
+  const floorUpper=s.upper+s.slide+s.db,floorBottom=s.panel+s.slide+s.db;
+  faces.forEach((f,i)=>{
+    const face=parseFrac(f);const isTop=i===0,isBot=i===n-1;
+    let item=face;if(isTop)item-= (s.panel-s.top);if(isBot)item-=s.panel;
+    const ceiling=isTop?-(s.panel-s.top):s.rev+s.upper; const floor=isBot?floorBottom:floorUpper;
+    let usable=face+ceiling-floor-s.cl;
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${i+1}${isTop?' (top)':isBot?' (bottom)':''}</td><td><input id="f${i}" value="${f}" data-i="${i}"></td><td class="num">${fmt(item)}${isBot?' (auto)':''}</td><td class="num">${fmt(usable)}</td><td><button type="button" data-del="${i}" aria-label="Remove drawer ${i+1}">×</button></td>`;
+    tb.appendChild(tr);
+  });
+}
+function equal(n){const s=settings();const avail=available(s,n);let per=Math.floor(avail/n*8)/8;const arr=Array(n).fill(per);let rem=Math.round((avail-per*n)*16)/16;arr[n-1]=Math.round((per+rem)*16)/16;faces=arr.map(v=>fmt(v).replace('"',''));render()}
+$('split').onclick=()=>equal(parseInt($('n').value));
+$('add').onclick=()=>{faces.push('0');render()};
+$('rows').addEventListener('input',e=>{if(e.target.dataset.i!==undefined){faces[+e.target.dataset.i]=e.target.value;const st=e.target;render();const el=$('f'+st.dataset.i);if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}}});
+$('rows').addEventListener('click',e=>{if(e.target.dataset.del!==undefined){faces.splice(+e.target.dataset.del,1);render()}});
+['stack','reveal','topReveal','panel','slide','dbottom','clear','upper'].forEach(id=>$(id).addEventListener('input',render));
+equal(3);
+</script>
+</body></html>
